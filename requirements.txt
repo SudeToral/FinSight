@@ -1,0 +1,20 @@
+# Core Airflow with Google provider (BigQuery, GCS operators)
+apache-airflow[google]>=2.8,<3.0
+
+# BigQuery Python client
+google-cloud-bigquery>=3.0,<4.0
+
+# Stock data ingestion
+yfinance>=0.2,<1.0
+
+# Data manipulation (yfinance returns DataFrames)
+pandas>=2.0,<3.0
+
+# Kubeflow Pipelines SDK v2
+kfp>=2.0,<3.0
+
+# Model registry
+mlflow>=2.10,<3.0
+
+# Anomaly detection model (Phase 2)
+scikit-learn>=1.4,<2.0

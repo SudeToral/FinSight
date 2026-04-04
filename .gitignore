@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+.venv/
+venv/
+env/
+
+# WHY: Never commit ADC or any GCP credentials — even accidentally.
+*.json
+!monitoring/grafana-dashboard.json
+
+# Airflow runtime files
+logs/
+plugins/
+airflow.db
+airflow-webserver.pid
+standalone_admin_password.txt
+
+# Docker
+.docker/
+
+# Environment variables
+.env
+.env.*
+
+# macOS
+.DS_Store
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# MLflow
+mlruns/
+mlartifacts/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
