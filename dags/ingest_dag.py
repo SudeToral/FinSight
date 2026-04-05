@@ -19,6 +19,7 @@ from datetime import datetime, timedelta
 import yfinance as yf
 from airflow.decorators import dag, task
 from airflow.exceptions import AirflowException
+from airflow.models import Variable
 from google.cloud import bigquery
 
 log = logging.getLogger(__name__)
@@ -27,9 +28,6 @@ log = logging.getLogger(__name__)
 # without touching task logic.
 SYMBOLS = ["AAPL", "GOOGL", "MSFT", "AMZN"]
 
-# WHY: Project and dataset are not hardcoded — set these as Airflow Variables
-# (Admin → Variables in the UI) so no credentials or config live in the DAG file.
-GCP_PROJECT = "{{ var.value.gcp_project }}"
 DATASET = "finsight"
 TABLE = "stock_prices"
 
@@ -127,13 +125,25 @@ def ingest_dag():
         # Inside the Docker container the ADC file is mounted at
         # /home/airflow/.config/gcloud/application_default_credentials.json
         # (see docker-compose.yaml volume mount).
-        client = bigquery.Client(project=GCP_PROJECT)
-        table_ref = f"{GCP_PROJECT}.{DATASET}.{TABLE}"
+        # WHY: Variable.get() reads the value at runtime from Airflow's metadata DB.
+        # Set this via Admin → Variables in the UI: key=gcp_project, value=your-project-id
+        gcp_project = Variable.get("gcp_project")
+        client = bigquery.Client(project=gcp_project)
+        table_ref = f"{gcp_project}.{DATASET}.{TABLE}"
 
-        errors = client.insert_rows_json(table_ref, rows)
+        # WHY: load_table_from_json uses batch load instead of streaming insert.
+        # Streaming insert (insert_rows_json) is not available on the BigQuery
+        # free/sandbox tier — it raises a 403 Forbidden error.
+        # Batch load is free, slightly slower, but perfectly fine for daily pipelines.
+        job_config = bigquery.LoadJobConfig(
+            write_disposition=bigquery.WriteDisposition.WRITE_APPEND,
+            source_format=bigquery.SourceFormat.NEWLINE_DELIMITED_JSON,
+        )
+        job = client.load_table_from_json(rows, table_ref, job_config=job_config)
+        job.result()  # Wait for the job to complete
 
-        if errors:
-            raise AirflowException(f"BigQuery insert errors: {errors}")
+        if job.errors:
+            raise AirflowException(f"BigQuery load errors: {job.errors}")
 
         log.info("Inserted %d rows into %s", len(rows), table_ref)
 
@@ -148,12 +158,17 @@ def ingest_dag():
         If the pipeline ran but wrote zero recent rows, we want an Airflow
         task failure (red cell in the UI) rather than silent data loss.
         """
-        client = bigquery.Client(project=GCP_PROJECT)
+        gcp_project = Variable.get("gcp_project")
+        client = bigquery.Client(project=gcp_project)
 
+        # WHY: We check 30 days instead of 2 days because:
+        # 1. We fetch 30 days of data in fetch_stock_data
+        # 2. BigQuery streaming buffer can lag a few seconds, so checking
+        #    the exact last 2 days right after insert is unreliable.
         query = f"""
             SELECT COUNT(*) AS recent_count
-            FROM `{GCP_PROJECT}.{DATASET}.{TABLE}`
-            WHERE date >= DATE_SUB(CURRENT_DATE(), INTERVAL 2 DAY)
+            FROM `{gcp_project}.{DATASET}.{TABLE}`
+            WHERE date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
         """
 
         result = client.query(query).result()

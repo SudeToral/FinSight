@@ -4,7 +4,10 @@
 # no Redis/RabbitMQ needed for a single-machine learning environment.
 
 x-airflow-common: &airflow-common
-  image: apache/airflow:2.8.4
+  # WHY: python3.11 variant required — yfinance's multitasking dependency uses
+  # type[X] syntax that is only valid in Python 3.9+. The default 2.8.4 image
+  # ships with Python 3.8 which raises TypeError at import time.
+  image: apache/airflow:2.8.4-python3.11
   environment:
     &airflow-common-env
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
@@ -14,6 +17,9 @@ x-airflow-common: &airflow-common
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
     AIRFLOW__CORE__FERNET_KEY: ""
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
+    # WHY: _PIP_ADDITIONAL_REQUIREMENTS installs packages at container startup.
+    # Simpler than building a custom Docker image for a learning project.
+    _PIP_ADDITIONAL_REQUIREMENTS: "yfinance>=0.2,<1.0 google-cloud-bigquery>=3.0,<4.0 pandas>=2.0,<3.0"
     # WHY: ADC credentials are passed via volume mount (see volumes below).
     # Never hardcode a service account key — mount the host's gcloud ADC file instead.
     GOOGLE_APPLICATION_CREDENTIALS: /home/airflow/.config/gcloud/application_default_credentials.json
