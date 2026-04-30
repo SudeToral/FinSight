@@ -39,7 +39,7 @@ from components.evaluate import evaluate
 # WHY: Pipeline-level defaults are defined here so they can be overridden
 # at submission time without editing the pipeline code.
 DEFAULT_GCP_PROJECT = "finsight-492407"
-DEFAULT_MLFLOW_URI = "http://mlflow:5000"
+DEFAULT_MLFLOW_URI = "file://" + os.path.join(os.getcwd(), "mlruns")
 DEFAULT_CONTAMINATION = 0.05
 OUTPUT_YAML = "kubeflow/finsight_pipeline.yaml"
 

@@ -19,7 +19,7 @@ x-airflow-common: &airflow-common
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
     # WHY: _PIP_ADDITIONAL_REQUIREMENTS installs packages at container startup.
     # Simpler than building a custom Docker image for a learning project.
-    _PIP_ADDITIONAL_REQUIREMENTS: "yfinance>=0.2,<1.0 google-cloud-bigquery>=3.0,<4.0 pandas>=2.0,<3.0"
+    _PIP_ADDITIONAL_REQUIREMENTS: "yfinance>=0.2,<1.0 google-cloud-bigquery>=3.0,<4.0 pandas>=2.0,<3.0 kfp>=2.0,<3.0"
     # WHY: ADC credentials are passed via volume mount (see volumes below).
     # Never hardcode a service account key — mount the host's gcloud ADC file instead.
     GOOGLE_APPLICATION_CREDENTIALS: /home/airflow/.config/gcloud/application_default_credentials.json
@@ -27,6 +27,7 @@ x-airflow-common: &airflow-common
     - ./dags:/opt/airflow/dags
     - ./logs:/opt/airflow/logs
     - ./plugins:/opt/airflow/plugins
+    - ./kubeflow:/opt/airflow/kubeflow:ro
     # WHY: Mount host ADC credentials so Airflow tasks can authenticate to GCP
     # without any key files checked into the repo.
     - ${HOME}/.config/gcloud:/home/airflow/.config/gcloud:ro
@@ -79,7 +80,7 @@ services:
     <<: *airflow-common
     command: webserver
     ports:
-      - "8080:8080"
+      - "8085:8080"
     healthcheck:
       test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
       interval: 30s

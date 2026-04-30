@@ -25,6 +25,7 @@ from kfp.dsl import Output, Dataset
         "google-cloud-bigquery>=3.0,<4.0",
         "pandas>=2.0,<3.0",
         "pyarrow>=14.0",  # WHY: BigQuery client uses pyarrow for data transfer
+        "db-dtypes",      # WHY: Required for to_dataframe() method
     ],
 )
 def preprocess(
