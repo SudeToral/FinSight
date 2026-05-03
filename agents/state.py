@@ -14,3 +14,5 @@ class AgentState(TypedDict):
     risk_score: float
     decision: str
     reasoning: str
+    compliance_approved: bool
+    trade_executed: bool
