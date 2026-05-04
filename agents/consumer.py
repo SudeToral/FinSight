@@ -3,15 +3,16 @@ import os
 from confluent_kafka import Consumer, KafkaError
 from agents.graph import app
 
-KAFKA_BROKER = "localhost:9092"
+KAFKA_BROKER = "127.0.0.1:9092"
 TOPIC = "market_ticks"
 GROUP_ID = "finsight-agent-group"
 
 def start_consumer():
     conf = {
-        'bootstrap.servers': KAFKA_BROKER,
+        'bootstrap.servers': '127.0.0.1:9092',
         'group.id': GROUP_ID,
-        'auto.offset.reset': 'latest'
+        'auto.offset.reset': 'latest',
+        'max.poll.interval.ms': 600000 # 10 minutes for human approval
     }
 
     consumer = Consumer(conf)
@@ -38,21 +39,26 @@ def start_consumer():
             # Here we might need to compute the features that the model expects 
             # like daily_return, volatility_5d, etc. For now, we mock them
             # so the market_analyzer doesn't fail.
-            payload["daily_return"] = 0.0 # Placeholder
-            payload["volatility_5d"] = 0.0 # Placeholder
-            payload["volume_ratio"] = 1.0 # Placeholder
-            payload["price_range_pct"] = 0.0 # Placeholder
+            # Initialize Advanced Agentic AI Fields
+            payload["news_headlines"] = []
             payload["reasoning"] = ""
+            payload["next_step"] = ""
+            payload["critic_feedback"] = ""
+            payload["human_approval"] = True # Default to true unless changed
+            payload["iterations"] = 0
+            payload["market_analyzed"] = False
+            payload["news_researched"] = False
             
             # Trigger LangGraph Agent with memory config
             try:
                 # Use a specific thread_id (e.g. symbol) so the agent remembers per symbol
                 config = {"configurable": {"thread_id": f"agent_thread_{payload['symbol']}"}}
                 result = app.invoke(payload, config=config)
-                print(f"--- Agent Decision ---")
+                print(f"--- Final Agent Decision ---")
                 print(f"Action: {result.get('decision', 'HOLD')}")
                 print(f"Reasoning: {result.get('reasoning', '')}")
-                print("-" * 20)
+                print(f"Execution Status: {'SUCCESS' if result.get('trade_executed') else 'NOT EXECUTED'}")
+                print("-" * 30)
             except Exception as e:
                 print(f"Error executing agent: {e}")
                 

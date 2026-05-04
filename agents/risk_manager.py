@@ -24,7 +24,11 @@ Current Market Data for {state['symbol']}:
 - Anomaly Detected: {state['anomaly_detected']}
 - Recent News: {state['news_headlines']}
 
-What is your risk decision?
+--- CRITIC FEEDBACK ---
+{state.get('critic_feedback', 'No feedback yet.')}
+-----------------------
+
+What is your risk decision? Please address any critic feedback in your reasoning if present.
 """
 
     messages = [

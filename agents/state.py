@@ -16,3 +16,9 @@ class AgentState(TypedDict):
     reasoning: str
     compliance_approved: bool
     trade_executed: bool
+    next_step: str
+    critic_feedback: str
+    human_approval: bool  
+    iterations: int
+    market_analyzed: bool
+    news_researched: bool

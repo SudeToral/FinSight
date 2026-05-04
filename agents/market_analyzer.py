@@ -47,9 +47,26 @@ def market_analyzer_node(state: AgentState) -> AgentState:
     
     anomaly = True if prediction == -1 else False
     
+    # Save to database for dashboard visualization
+    try:
+        from infrastructure.database import get_db_connection
+        from datetime import datetime
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO anomaly_history (symbol, price, timestamp, is_anomaly, score)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (state['symbol'], state['current_price'], datetime.now(), anomaly, float(score)))
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        print(f"[Market Analyzer] DB Save Error: {e}")
+
     print(f"[Market Analyzer] Prediction: {'ANOMALY' if anomaly else 'NORMAL'} (Score: {score:.4f})")
     
     return {
         "anomaly_detected": anomaly,
-        "risk_score": float(abs(score)) if anomaly else 0.0
+        "risk_score": float(abs(score)) if anomaly else 0.0,
+        "market_analyzed": True
     }

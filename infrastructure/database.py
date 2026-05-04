@@ -2,7 +2,7 @@ import psycopg2
 
 # Postgres connection parameters from agent-docker-compose.yaml
 DB_PARAMS = {
-    "host": "localhost",
+    "host": "127.0.0.1",
     "port": "5433",
     "database": "agent_db",
     "user": "agent",
@@ -29,6 +29,28 @@ def init_db():
                 reasoning TEXT
             )
         """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS anomaly_history (
+                id SERIAL PRIMARY KEY,
+                symbol VARCHAR(10) NOT NULL,
+                price DECIMAL(10, 2) NOT NULL,
+                timestamp TIMESTAMP NOT NULL,
+                is_anomaly BOOLEAN NOT NULL,
+                score DECIMAL(10, 6)
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS watchlist (
+                symbol VARCHAR(10) PRIMARY KEY,
+                added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        # Initialize with defaults if empty
+        cur.execute("SELECT COUNT(*) FROM watchlist")
+        if cur.fetchone()[0] == 0:
+            for s in ["AAPL", "MSFT", "GOOGL"]:
+                cur.execute("INSERT INTO watchlist (symbol) VALUES (%s)", (s,))
+        
         conn.commit()
         cur.close()
         conn.close()
