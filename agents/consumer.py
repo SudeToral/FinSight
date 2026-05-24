@@ -1,5 +1,10 @@
 import json
 import os
+import sys
+
+# Add project root to sys.path to allow importing agents
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from confluent_kafka import Consumer, KafkaError
 from agents.graph import app
 
@@ -11,7 +16,7 @@ def start_consumer():
     conf = {
         'bootstrap.servers': '127.0.0.1:9092',
         'group.id': GROUP_ID,
-        'auto.offset.reset': 'latest',
+        'auto.offset.reset': 'earliest',
         'max.poll.interval.ms': 600000 # 10 minutes for human approval
     }
 
@@ -52,13 +57,28 @@ def start_consumer():
             # Trigger LangGraph Agent with memory config
             try:
                 # Use a specific thread_id (e.g. symbol) so the agent remembers per symbol
-                config = {"configurable": {"thread_id": f"agent_thread_{payload['symbol']}"}}
+                config = {"configurable": {"thread_id": f"thread_{payload['symbol']}"}}
+                
+                # Run the graph
+                # If it hits 'interrupt_before', it will stop and return current state
                 result = app.invoke(payload, config=config)
-                print(f"--- Final Agent Decision ---")
-                print(f"Action: {result.get('decision', 'HOLD')}")
-                print(f"Reasoning: {result.get('reasoning', '')}")
-                print(f"Execution Status: {'SUCCESS' if result.get('trade_executed') else 'NOT EXECUTED'}")
-                print("-" * 30)
+                
+                # Check if execution was interrupted (waiting for human)
+                snapshot = app.get_state(config)
+                
+                if snapshot.next:
+                    print(f"\n" + "!"*50)
+                    print(f"🚨 ACTION SUSPENDED: Waiting for Human Approval")
+                    print(f"Node: {snapshot.next}")
+                    print(f"Thread ID: {config['configurable']['thread_id']}")
+                    print(f"Symbol: {payload['symbol']}")
+                    print("!"*50 + "\n")
+                else:
+                    print(f"\n✅ FLOW COMPLETED")
+                    print(f"Action: {result.get('decision', 'HOLD')}")
+                    print(f"Reasoning: {result.get('reasoning', '')}")
+                    print("-" * 30)
+
             except Exception as e:
                 print(f"Error executing agent: {e}")
                 

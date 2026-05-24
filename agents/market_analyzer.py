@@ -22,7 +22,32 @@ def market_analyzer_node(state: AgentState) -> AgentState:
     artifact = load_latest_model()
     if not artifact:
         print("[Market Analyzer] Warning: No model found! Falling back to mock.")
-        return {"anomaly_detected": False}
+        # If the incoming payload already flagged it as an anomaly, respect it
+        anomaly = state.get("anomaly_detected", False)
+        score = -0.5 if anomaly else 0.1
+        
+        # Save to database for dashboard visualization
+        try:
+            from infrastructure.database import get_db_connection
+            from datetime import datetime
+            conn = get_db_connection()
+            cur = conn.cursor()
+            cur.execute("""
+                INSERT INTO anomaly_history (symbol, price, timestamp, is_anomaly, score)
+                VALUES (%s, %s, %s, %s, %s)
+            """, (state['symbol'], state['current_price'], datetime.now(), anomaly, float(score)))
+            conn.commit()
+            cur.close()
+            conn.close()
+        except Exception as e:
+            print(f"[Market Analyzer] DB Save Error: {e}")
+            
+        print(f"[Market Analyzer] Prediction (Mock): {'ANOMALY' if anomaly else 'NORMAL'} (Score: {score:.4f})")
+        return {
+            "anomaly_detected": anomaly,
+            "risk_score": 0.85 if anomaly else 0.0,
+            "market_analyzed": True
+        }
         
     model = artifact["model"]
     scaler = artifact["scaler"]

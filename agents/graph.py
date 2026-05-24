@@ -1,4 +1,6 @@
 from langgraph.graph import StateGraph, END
+from langgraph.checkpoint.postgres import PostgresSaver
+from psycopg_pool import ConnectionPool
 from agents.state import AgentState
 
 # Import all nodes
@@ -81,8 +83,19 @@ workflow.add_edge("compliance", "trade_executor")
 workflow.add_edge("trade_executor", END)
 workflow.add_edge("mlops_monitor", END)
 
-# NOT: LangGraph Studio / langgraph dev kendi persistence (Postgres) yapısını 
-# otomatik kurduğu için manuel checkpointer'ı kaldırıyoruz.
-app = workflow.compile()
+# --- Persistence Setup ---
+# WHY: In local dev we use 127.0.0.1:5433 (exposed port). 
+# In AWS, this will be replaced with an RDS connection string.
+DB_URI = "postgresql://agent:agentpassword@127.0.0.1:5433/agent_db?sslmode=disable"
 
-print("[Graph] Advanced Supervisor + Reflexion Graph successfully compiled.")
+# Initialize Connection Pool and PostgresSaver
+pool = ConnectionPool(conninfo=DB_URI, max_size=20, kwargs={"autocommit": True})
+checkpointer = PostgresSaver(pool)
+
+# IMPORTANT: Ensure tables exist (runs automatically if they don't)
+checkpointer.setup() 
+
+# Compile with checkpointer
+app = workflow.compile(checkpointer=checkpointer,interrupt_before=["human_node"])
+
+print("[Graph] Advanced Supervisor + Reflexion Graph successfully compiled with Postgres Persistence.")

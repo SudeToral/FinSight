@@ -1,11 +1,13 @@
-from fastapi import FastAPI, WebSocket
+from fastapi import FastAPI, WebSocket, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import psycopg2
 from infrastructure.database import get_db_connection
+from agents.graph import app as agent_app
 import asyncio
 import json
 
@@ -19,8 +21,62 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+class ApprovalRequest(BaseModel):
+    symbol: str
+
+@app.get("/api/agent/state/{symbol}")
+async def get_agent_state(symbol: str):
+    """Returns the current state and next steps for a specific symbol's agent."""
+    thread_id = f"thread_{symbol.upper()}"
+    config = {"configurable": {"thread_id": thread_id}}
+    
+    snapshot = agent_app.get_state(config)
+    
+    return {
+        "thread_id": thread_id,
+        "next_step": snapshot.next, # List of nodes where the graph is paused
+        "values": snapshot.values,  # Current state data
+        "metadata": snapshot.metadata
+    }
+
+@app.post("/api/agent/approve")
+async def approve_trade(req: ApprovalRequest):
+    """Injects human approval and resumes the agent flow."""
+    thread_id = f"thread_{req.symbol.upper()}"
+    config = {"configurable": {"thread_id": thread_id}}
+    
+    try:
+        # 1. Update state with human_approval = True
+        # This acts like the user providing input
+        agent_app.update_state(config, {"human_approval": True})
+        
+        # 2. Resume execution (passing None means continue from where it stopped)
+        agent_app.invoke(None, config=config)
+        
+        return {"status": "success", "message": f"Trade for {req.symbol} approved and resumed."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/agent/reject")
+async def reject_trade(req: ApprovalRequest):
+    """Injects human rejection and resumes the agent flow."""
+    thread_id = f"thread_{req.symbol.upper()}"
+    config = {"configurable": {"thread_id": thread_id}}
+    
+    try:
+        # 1. Update state with human_approval = False
+        agent_app.update_state(config, {"human_approval": False})
+        
+        # 2. Resume execution
+        agent_app.invoke(None, config=config)
+        
+        return {"status": "success", "message": f"Trade for {req.symbol} rejected and resumed."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/api/trades/{symbol}")
 async def get_trades(symbol: str):
+# ... existing code ...
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute("SELECT * FROM trade_history WHERE symbol = %s ORDER BY timestamp DESC LIMIT 50", (symbol,))

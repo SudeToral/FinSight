@@ -11,7 +11,13 @@ def supervisor_node(state: AgentState) -> AgentState:
     Strategic Manager: Decides the next step based on data severity, 
     agent feedback, and missing information.
     """
+    # If a final execution step has already been determined by the critic or risk manager, bypass LLM
+    if state.get("next_step") in ["compliance", "human_node", "mlops_monitor"]:
+        print(f"[Supervisor] Bypassing LLM. Routing to already determined step: {state['next_step'].upper()}")
+        return {"next_step": state['next_step']}
+
     print(f"[Supervisor] Analyzing Strategy for {state['symbol']} | Price: {state['current_price']}")
+    print(f"[Supervisor] DEBUG STATE: market_analyzed={state.get('market_analyzed')}, news_researched={state.get('news_researched')}, next_step={state.get('next_step')}, risk_score={state.get('risk_score')}, critic_feedback={state.get('critic_feedback')}")
     
     # ADVANCED LOGIC: Define strategy context
     risk_score = state.get('risk_score', 0)
@@ -73,9 +79,42 @@ Strategic Decision: Based on the state and guidelines, who should act next?
             print("[Supervisor] Safety Override: Forcing Market Analysis.")
             next_step = "market_analyzer"
 
+        # 3. Loop Prevention: If already analyzed, do NOT route back to analyzer
+        if state.get('market_analyzed') and next_step == "market_analyzer":
+            if not state.get('news_researched'):
+                next_step = "news_researcher"
+            else:
+                next_step = "risk_manager"
+                
+        # 4. Loop Prevention: If already researched, do NOT route back to researcher
+        if state.get('news_researched') and next_step == "news_researcher":
+            next_step = "risk_manager"
+
+        # 5. Loop Prevention: If risk manager and critic have already run, force progression to human/compliance
+        if state.get('risk_score', 0) > 0 and next_step in ["risk_manager", "market_analyzer", "news_researcher"]:
+            if state.get('critic_feedback') and state.get('human_approval') is None:
+                next_step = "human_node"
+            elif state.get('critic_feedback'):
+                next_step = "compliance"
+            else:
+                next_step = "risk_manager"
+
         print(f"[Supervisor] Strategic Decision: {next_step.upper()}")
         return {"next_step": next_step}
         
     except Exception as e:
-        print(f"[Supervisor] Critical Error: {e}")
-        return {"next_step": "market_analyzer"} # Safety fallback
+        print(f"[Supervisor] Ollama Connection Failed ({e}). Using deterministic rule-based router.")
+        # Ensure sequential flow: analyzer -> researcher -> risk_manager -> critic -> human/compliance
+        if not state.get('market_analyzed'):
+            next_step = "market_analyzer"
+        elif not state.get('news_researched'):
+            next_step = "news_researcher"
+        elif state.get('risk_score', 0) == 0:
+            next_step = "risk_manager"
+        elif not state.get('critic_feedback'):
+            next_step = "critic"
+        elif state.get('human_approval') is None:
+            next_step = "human_node"
+        else:
+            next_step = "compliance"
+        return {"next_step": next_step}

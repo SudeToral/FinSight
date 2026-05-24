@@ -1,0 +1,13 @@
+🚀 Starting Dynamic Market Streamer (Broker: 127.0.0.1:9092)...
+
+--- Cycle Start: Streaming 3 symbols ---
+[Produced] MSFT @ $418.57
+[Produced] GOOGL @ $383.02
+[Produced] TSLA @ $425.96
+--- Cycle End. Sleeping for 10 seconds ---
+
+--- Cycle Start: Streaming 3 symbols ---
+[Produced] MSFT @ $418.57
+[Produced] GOOGL @ $382.98
+[Produced] TSLA @ $425.95
+--- Cycle End. Sleeping for 10 seconds ---
